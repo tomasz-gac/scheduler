@@ -2,59 +2,79 @@
   (:require [clojure.core.logic :as l])
   (:require [clojure.core.logic.fd :as fd]))
 
-(l/defne worko
-  "Defines work relationship. Work start must be before end, and have a duration."
-  [work] ([[s d e]]
-          (l/all (fd/< s e) (fd/+ s d e))))
+(l/defne stripo
+  "Defines time strip relationship. Time strip start must be before end, and have a duration."
+  [work] ([[start duration end _]]
+          (l/all (fd/< start end) (fd/+ start duration end))))
 
-(l/defne happens-before
-         "Defines a happens-before relationship between two works."
-         [before after]
-         ([[_ _ e] [s _ _]] (fd/<= e s)))
+(l/defne happens-beforo
+         "Defines a happens-before relationship between consecutive time strips in a list."
+         [elements]
+         ([[]])
+         ([[a]])
+         ([[a b . d]]
+          (l/matche [a b] ([ [_ _ e _] [s _ _ _] ] (fd/<= e s)))
+          (happens-beforo (l/llist b d))))
 
-(l/defne non-overlapping
-         [a b]
-         ([[s1 _ e1] [s2 _ e2]]
-          (l/conde
-            [(fd/>= s2 e1)]
-            [(fd/>= s1 e2)])))
+(l/defne non-overlappo
+  "Two time strips must not overlap in time, if they share the same space"
+  [a b]
+  ([[s1 _ e1 sp1] [s2 _ e2 sp2]]
+   (l/conde
+     [(l/== sp1 sp2)
+      (l/conde
+        [(fd/>= s2 e1)]
+        [(fd/>= s1 e2)])]
+     [(l/!= sp1 sp2)])))
 
-(l/defne processo
-  "Defines a process goal.
-  Process is a list of work, in which next work cannot start before previous has ended"
-  [works]
-  ([[]])
-  ([[a]])
-  ([[a b . d]]
-   (l/matche [a b] ([ [_ _ e] [s _ _] ] (fd/<= e s)))
-   (processo (l/llist b d))))
-
-(defn key-or-fresho
-  "Returns a goal that assigns a value from a map at a given key,
-  or a fresh value if the key is missing"
-  [map key]
-  (let [v (key map)]
-    (if (nil? v)
-      (fn [x] (l/fresh [s] (l/== s x)))
-      (fn [x] (l/== v x)))))
-
-(defn is-work
-  "Returns a goal that unifies x with work data specified by the supplied map.
-  Work is a list [start duration end] that corresponds with map values at those keys."
+(defn is-stripo
+  "Returns a goal that unifies x with time strip data specified by the supplied map.
+  Time strip is a list [start duration end space] that corresponds with map values at those keys."
   [work]
   (l/fne [x]
-    ([[s d e]]
-     ((key-or-fresho work :start) s)
-     ((key-or-fresho work :duration) d)
-     ((key-or-fresho work :end) e)
-     (is-work [s d e]))))
+         ([[start duration end space]]
+          ((:start work) start)
+          ((:duration work) duration)
+          ((:end work) end)
+          ((:space work) space)
+          (stripo [start duration end space]))))
 
-
+(l/defne constrain-spaceo
+  "This constraint will assure that all time strips within the argument
+  obey non-overlapping relationship with each other. Quadratic."
+  [strips]
+  ([[]])
+  ([[w . ws]]
+   (let [space' (l/defne space' [c a]
+                  ([_ []])
+                  ([_ [f . d]]
+                   (non-overlappo c f)
+                   (space' c d)))]
+     (l/all (space' w ws) (constrain-spaceo ws)))))
 
 (defn is-process
   "Returns a goal that unifies x with process data specified by the supplied collection of maps.
   Process is an ordered list of work data, as defined by is-work."
   ([[p & process]]
    (if (empty? process)
-     (l/fne [x] ([_] ((is-work p) x)))
-     (l/fne [x] ([[a . [d]]] ((is-work p) a) ((is-process process) d))))))
+     (fn [x] (l/fresh [res]
+                      ((is-stripo p) res)
+                      (l/conso res [] x)))
+     (l/fne [x] ([[a . d]]
+                 ((is-stripo p) a)
+                 ((is-process process) d))))))
+
+(defn preprocess-strip
+  "Preprocesses time strip data. Changes numeric values to core.logic goals,
+  or uses default to introduce fresh variables. :space key is required in work-map"
+  [work-map default]
+  (letfn [(extract [key map default]
+            (let [v (key map default)]
+              (cond
+                (number? v) (fn [x] (l/== x v))
+                (fn? v) v)))]
+    {:start    (extract :start work-map default)
+     :duration (extract :duration work-map default)
+     :end      (extract :end work-map default)
+     :space    (fn [x] (l/== x (:space work-map)))}))
+
