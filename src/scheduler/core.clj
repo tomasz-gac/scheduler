@@ -19,13 +19,13 @@
 (l/defne non-overlappo
   "Two time strips must not overlap in time, if they share the same space"
   [a b]
-  ([[s1 _ e1 sp1] [s2 _ e2 sp2]]
+  ([[_ _ _ sp1] [_ _ _ sp2]]
    (l/conde
-     [(l/== sp1 sp2)
+     [(fd/== sp1 sp2)
       (l/conde
-        [(fd/>= s2 e1)]
-        [(fd/>= s1 e2)])]
-     [(l/!= sp1 sp2)])))
+        [(happens-beforo [a b])]
+        [(happens-beforo [b a])])]
+     [(fd/!= sp1 sp2)])))
 
 (defn is-stripo
   "Returns a goal that unifies x with time strip data specified by the supplied map.
@@ -71,10 +71,10 @@
   (letfn [(extract [key map default]
             (let [v (key map default)]
               (cond
-                (number? v) (fn [x] (l/== x v))
+                (number? v) (fn [x] (fd/== x v))
                 (fn? v) v)))]
     {:start    (extract :start work-map default)
      :duration (extract :duration work-map default)
      :end      (extract :end work-map default)
-     :space    (fn [x] (l/== x (:space work-map)))}))
+     :space    (fn [x] (l/all (fd/in x (fd/interval 0 10)) (fd/== x (:space work-map))))}))
 
