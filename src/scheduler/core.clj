@@ -5,7 +5,6 @@
 (l/defne stripo
   "Defines time strip relationship. Time strip start must be before end, and have a duration."
   [work] ([[start duration end _]]
-          (fd/< start end)
           (fd/+ start duration end)))
 
 (l/defne happens-beforo
@@ -72,16 +71,19 @@
   (letfn [(extract [key map default]
             (let [v (key map default)]
               (cond
-                (number? v) (fn [x] (fd/== x v))
+                (number? v) (fn [x] (l/== x v))
                 (fn? v) v)))]
     {:start    (extract :start work-map default)
      :duration (extract :duration work-map default)
      :end      (extract :end work-map default)
-     :space    (fn [x] (l/== x (:space work-map)))}))
+     :space    (extract :space work-map default)}))
 
 (defn process-data
   ([m default]
    (map preprocess-strip (repeat m) (repeat default))))
 
-(defn process [n]
-  (take n (process-data {:duration 1 :space 1} #(fd/in % (fd/interval 0 500)))))
+(defn process
+  ([n] (process n 1))
+  ([n space]
+   (take n (process-data {:duration 1 :space space}
+                         #(fd/in % (fd/interval 0 500))))))
