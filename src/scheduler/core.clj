@@ -13,13 +13,16 @@
          ([[]])
          ([[a]])
          ([[a b . d]]
-          (l/matche [a b] ([ [_ _ e _] [s _ _ _] ] (fd/<= e s)))
+          (l/matche [a b] ([ [s1 d1 _] [s2 _ _]]
+                           (l/fresh [e]
+                                    (fd/+ s1 d1 e)
+                                    (fd/<= e s2))))
           (happens-beforo (l/llist b d))))
 
 (l/defne non-overlappo
   "Two time strips must not overlap in time, if they share the same space"
   [a b]
-  ([[_ _ _ sp1] [_ _ _ sp2]]
+  ([[_ _ sp1] [_ _ sp2]]
    (l/conde
      [(fd/== sp1 sp2)
       (l/conde
@@ -32,12 +35,10 @@
   Time strip is a list [start duration end space] that corresponds with map values at those keys."
   [work]
   (l/fne [x]
-         ([[start duration end space]]
+         ([[start duration space]]
           ((:start work) start)
           ((:duration work) duration)
-          ((:end work) end)
-          ((:space work) space)
-          (stripo [start duration end space]))))
+          ((:space work) space))))
 
 (l/defne constrain-spaceo
   "This constraint will assure that all time strips within the argument
@@ -75,7 +76,6 @@
                 (fn? v) v)))]
     {:start    (extract :start work-map default)
      :duration (extract :duration work-map default)
-     :end      (extract :end work-map default)
      :space    (extract :space work-map default)}))
 
 (defn process-data
