@@ -2,10 +2,18 @@
   (:require [clojure.core.logic :as l])
   (:require [clojure.core.logic.fd :as fd]))
 
-(l/defne stripo
+(defn strip
   "Defines time strip relationship. Time strip start must be before end, and have a duration."
-  [work] ([[start duration end _]]
-          (l/all (fd/< start end) (fd/+ start duration end))))
+  [work] (let [{start :start duration :duration end :end} work]
+           (fd/< start end)
+           (fd/+ start duration end)))
+
+(defn stripo
+  "Defines time strip relationship. Time strip start must be before end, and have a duration."
+  [work] (l/fresh [start duration end]
+                  (l/featurec work {:start start :duration duration :end end})
+                  (fd/< start end)
+                  (fd/+ start duration end)))
 
 (l/defne happens-beforo
          "Defines a happens-before relationship between consecutive time strips in a list."
@@ -13,31 +21,40 @@
          ([[]])
          ([[a]])
          ([[a b . d]]
-          (l/matche [a b] ([ [_ _ e _] [s _ _ _] ] (fd/<= e s)))
-          (happens-beforo (l/llist b d))))
+          (l/fresh [end start]
+                   (l/featurec a {:end end})
+                   (l/featurec b {:start start})
+                   (fd/<= end start)
+                   (happens-beforo (l/llist b d)))))
 
-(l/defne non-overlappo
+
+(defn non-overlappo
   "Two time strips must not overlap in time, if they share the same space"
   [a b]
-  ([[_ _ _ sp1] [_ _ _ sp2]]
-   (l/conde
-     [(fd/== sp1 sp2)
-      (l/conde
-        [(happens-beforo [a b])]
-        [(happens-beforo [b a])])]
-     [(fd/!= sp1 sp2)])))
+  (l/fresh [sa sb]
+           (l/featurec a {:space sa})
+           (l/featurec b {:space sb})
+           (l/conde
+             [(fd/== sa sb)
+              (l/conde
+                [(happens-beforo [a b])]
+                [(happens-beforo [b a])])]
+             [(fd/!= sa sb)])))
 
-(defn is-stripo
+(defn is-strip
   "Returns a goal that unifies x with time strip data specified by the supplied map.
   Time strip is a list [start duration end space] that corresponds with map values at those keys."
   [work]
-  (l/fne [x]
-         ([[start duration end space]]
-          ((:start work) start)
-          ((:duration work) duration)
-          ((:end work) end)
-          ((:space work) space)
-          (stripo [start duration end space]))))
+  (fn [x]
+    (l/fresh [start duration end space]
+             ((:start work) start)
+             ((:duration work) duration)
+             ((:end work) end)
+             ((:space work) space)
+             (let [w {:start start :duration duration :end end :space space}]
+               (strip x)
+               (l/== x w)))))
+
 
 (l/defne constrain-spaceo
   "This constraint will assure that all time strips within the argument
@@ -58,10 +75,10 @@
   ([[p & process]]
    (if (empty? process)
      (fn [x] (l/fresh [res]
-                      ((is-stripo p) res)
+                      ((is-strip p) res)
                       (l/conso res [] x)))
      (l/fne [x] ([[a . d]]
-                 ((is-stripo p) a)
+                 ((is-strip p) a)
                  ((is-process process) d))))))
 
 (defn preprocess-strip
@@ -71,10 +88,10 @@
   (letfn [(extract [key map default]
             (let [v (key map default)]
               (cond
-                (number? v) (fn [x] (fd/== x v))
+                (number? v) (fn [x] (l/== x v))
                 (fn? v) v)))]
     {:start    (extract :start work-map default)
      :duration (extract :duration work-map default)
      :end      (extract :end work-map default)
-     :space    (fn [x] (l/all (fd/in x (fd/interval 0 10)) (fd/== x (:space work-map))))}))
+     :space    (fn [x] (l/== x (:space work-map)))}))
 
