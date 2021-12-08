@@ -79,3 +79,9 @@
      :end      (extract :end work-map default)
      :space    (fn [x] (l/== x (:space work-map)))}))
 
+(defn process-data
+  ([m default]
+   (map preprocess-strip (repeat m) (repeat default))))
+
+(defn process [n]
+  (take n (process-data {:duration 1 :space 1} #(fd/in % (fd/interval 0 500)))))
