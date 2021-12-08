@@ -5,7 +5,8 @@
 (l/defne stripo
   "Defines time strip relationship. Time strip start must be before end, and have a duration."
   [work] ([[start duration end _]]
-          (l/all (fd/< start end) (fd/+ start duration end))))
+          (fd/< start end)
+          (fd/+ start duration end)))
 
 (l/defne happens-beforo
          "Defines a happens-before relationship between consecutive time strips in a list."
@@ -76,5 +77,5 @@
     {:start    (extract :start work-map default)
      :duration (extract :duration work-map default)
      :end      (extract :end work-map default)
-     :space    (fn [x] (l/all (fd/in x (fd/interval 0 10)) (fd/== x (:space work-map))))}))
+     :space    (fn [x] (l/== x (:space work-map)))}))
 
