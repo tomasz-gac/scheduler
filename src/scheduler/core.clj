@@ -2,19 +2,6 @@
   (:require [clojure.core.logic :as l])
   (:require [clojure.core.logic.fd :as fd]))
 
-(defn strip
-  "Defines time strip relationship. Time strip start must be before end, and have a duration."
-  [work] (let [{start :start duration :duration end :end} work]
-           (fd/< start end)
-           (fd/+ start duration end)))
-
-(defn stripo
-  "Defines time strip relationship. Time strip start must be before end, and have a duration."
-  [work] (l/fresh [start duration end]
-                  (l/featurec work {:start start :duration duration :end end})
-                  (fd/< start end)
-                  (fd/+ start duration end)))
-
 (l/defne happens-beforo
          "Defines a happens-before relationship between consecutive time strips in a list."
          [elements]
@@ -51,10 +38,24 @@
              ((:duration work) duration)
              ((:end work) end)
              ((:space work) space)
-             (let [w {:start start :duration duration :end end :space space}]
-               (strip x)
-               (l/== x w)))))
+             (fd/< start end)
+             (fd/+ start duration end)
+             (l/== x {:start start
+                      :duration duration
+                      :end end
+                      :space space}))))
 
+(defn is-process
+  "Returns a goal that unifies x with process data specified by the supplied collection of maps.
+  Process is an ordered list of work data, as defined by is-work."
+  ([[p & process]]
+   (if (empty? process)
+     (fn [x] (l/fresh [res]
+                      ((is-strip p) res)
+                      (l/conso res [] x)))
+     (l/fne [x] ([[a . d]]
+                 ((is-strip p) a)
+                 ((is-process process) d))))))
 
 (l/defne constrain-spaceo
   "This constraint will assure that all time strips within the argument
@@ -68,6 +69,9 @@
                    (non-overlappo c f)
                    (space' c d)))]
      (l/all (space' w ws) (constrain-spaceo ws)))))
+
+
+
 
 (defn is-process
   "Returns a goal that unifies x with process data specified by the supplied collection of maps.
