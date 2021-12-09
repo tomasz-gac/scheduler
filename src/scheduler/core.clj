@@ -73,6 +73,8 @@
             (let [v (key map default)]
               (cond
                 (number? v) (fn [x] (l/== x v))
+                (vector? v) (fn [x] (fd/in x (fd/interval (first v) (second v))))
+                (set? v) (fn [x] (fd/in x (apply fd/domain v)))
                 (fn? v) v)))]
     {:start    (extract :start work-map default)
      :duration (extract :duration work-map default)
@@ -86,4 +88,4 @@
   ([n] (process n 1))
   ([n space]
    (take n (process-data {:duration 1 :space space}
-                         #(fd/in % (fd/interval 0 500))))))
+                         #(fd/in % (fd/interval 0 100))))))
